@@ -21,6 +21,11 @@ void debug_list_devices();
 
 float distance(Position component_01, Position component_02);
 
+void avoid_obstacles(
+    float* sensor_distances, int num_sensors,
+    WbDeviceTag left_motor, WbDeviceTag right_motor
+);
+
 #endif /* ROBOT_GO_FORWARD_H */
 
 

@@ -22,7 +22,11 @@
 #define TIME_STEP 64
 
 #define LIDAR_SAMPLING_PERIOD TIME_STEP
+#define LIDAR_SENSORS_NUM 3
+
 #define MOTOR_MAX_SPEED 6.28
+
+#define OBSTACLE_MAX_DIST 0.25
 
 //
 int main(int argc, char **argv) {
@@ -76,9 +80,17 @@ int main(int argc, char **argv) {
             };
         }
         if (DEBUG == 1) {printf("Lidar point %d: %f\n", 0, distance(robot_position, lidar_pcd_pos[0]) );}
+        if (DEBUG == 1) {printf("Lidar point %d: %f\n", 7, distance(robot_position, lidar_pcd_pos[7]) );}
+        if (DEBUG == 1) {printf("Lidar point %d: %f\n", 15, distance(robot_position, lidar_pcd_pos[15]) );}
         
 
         // Actuate
+        float sensor_distances[LIDAR_SENSORS_NUM] = {
+            distance(robot_position, lidar_pcd_pos[0]),
+            distance(robot_position, lidar_pcd_pos[7]),
+            distance(robot_position, lidar_pcd_pos[15])
+        };
+        avoid_obstacles(sensor_distances, LIDAR_SENSORS_NUM, left_motor, right_motor);
         
     };
 
@@ -114,4 +126,29 @@ float distance(Position component_01, Position component_02) {
         powf(component_01.z - component_02.z, 2)
     );
     return distance;
+}
+
+// Path control
+void avoid_obstacles(
+    float* sensor_distances, int num_sensors,
+    WbDeviceTag left_motor, WbDeviceTag right_motor
+) {
+    if (
+        sensor_distances[0] <= OBSTACLE_MAX_DIST/2
+        ||
+        sensor_distances[1] <= OBSTACLE_MAX_DIST
+        ||
+        sensor_distances[2] <= OBSTACLE_MAX_DIST/2
+    ) {
+        if (sensor_distances[0] > sensor_distances[2]) {
+            wb_motor_set_velocity(left_motor, -MOTOR_MAX_SPEED);
+            wb_motor_set_velocity(right_motor, MOTOR_MAX_SPEED);
+        } else {
+            wb_motor_set_velocity(left_motor, MOTOR_MAX_SPEED);
+            wb_motor_set_velocity(right_motor, -MOTOR_MAX_SPEED);
+        }
+    } else {
+        wb_motor_set_velocity(left_motor, MOTOR_MAX_SPEED);
+        wb_motor_set_velocity(right_motor, MOTOR_MAX_SPEED);
+    }
 }
