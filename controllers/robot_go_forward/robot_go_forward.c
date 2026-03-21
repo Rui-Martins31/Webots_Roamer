@@ -18,6 +18,8 @@
 */
 #define TIME_STEP 64
 
+#define MAX_SPEED 6.28
+
 /*
 * This is the main program.
 * The arguments of the main function can be specified by the
@@ -37,8 +39,11 @@ int main(int argc, char **argv) {
     WbDeviceTag left_motor  = wb_robot_get_device("left wheel motor");
     WbDeviceTag right_motor = wb_robot_get_device("right wheel motor");
     // set the target position of the motors
-    wb_motor_set_position(left_motor, 10.0);
-    wb_motor_set_position(right_motor, 10.0);
+    wb_motor_set_position(left_motor, INFINITY);
+    wb_motor_set_position(right_motor, INFINITY);
+
+    wb_motor_set_velocity(left_motor, MAX_SPEED);
+    wb_motor_set_velocity(right_motor, MAX_SPEED);
 
     /* main loop
     * Perform simulation steps of TIME_STEP milliseconds
