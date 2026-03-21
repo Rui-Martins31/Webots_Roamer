@@ -6,62 +6,80 @@
 * Modifications:
 */
 
-/*
-* You may need to add include files like <webots/distance_sensor.h> or
-* <webots/motor.h>, etc.
-*/
-#include <webots/robot.h>
-#include <webots/motor.h>
+#include <stdio.h>
+#include <stdlib.h>
 
-/*
-* You may want to add macros here.
-*/
+#include <webots/robot.h>
+#include <webots/device.h>
+#include <webots/motor.h>
+#include <webots/lidar.h>
+
+#include "robot_go_forward.h"
+
+// Globals
+#define DEBUG 1
+
 #define TIME_STEP 64
 
-#define MAX_SPEED 6.28
+#define LIDAR_SAMPLING_PERIOD TIME_STEP
+#define MOTOR_MAX_SPEED 6.28
 
-/*
-* This is the main program.
-* The arguments of the main function can be specified by the
-* "controllerArgs" field of the Robot node
-*/
+//
 int main(int argc, char **argv) {
     /* necessary to initialize webots stuff */
     wb_robot_init();
 
-    /*
-    * You should declare here WbDeviceTag variables for storing
-    * robot devices like this:
-    *  WbDeviceTag my_sensor = wb_robot_get_device("my_sensor");
-    *  WbDeviceTag my_actuator = wb_robot_get_device("my_actuator");
-    */
-    // get the motor devices
+    // List devices
+    if (DEBUG == 1) {debug_list_devices();}
+
+    // Devices
+    WbDeviceTag lidar       = wb_robot_get_device("lidar");
+
     WbDeviceTag left_motor  = wb_robot_get_device("left wheel motor");
     WbDeviceTag right_motor = wb_robot_get_device("right wheel motor");
-    // set the target position of the motors
+
+    // Robot
+    Position robot_position = (Position) {
+        .x = 0.0,
+        .y = 0.0,
+        .z = 0.0,
+    };
+
+    // Lidar
+    wb_lidar_enable(lidar, LIDAR_SAMPLING_PERIOD);
+    wb_lidar_enable_point_cloud(lidar);
+
+    int lidar_num_points = wb_lidar_get_horizontal_resolution(lidar);
+    const WbLidarPoint* lidar_pcd;
+    Position* lidar_pcd_pos = malloc(sizeof(Position) * lidar_num_points);
+
+    // Motors
     wb_motor_set_position(left_motor, INFINITY);
     wb_motor_set_position(right_motor, INFINITY);
-
-    wb_motor_set_velocity(left_motor, MAX_SPEED);
-    wb_motor_set_velocity(right_motor, MAX_SPEED);
-
-    /* main loop
-    * Perform simulation steps of TIME_STEP milliseconds
-    * and leave the loop when the simulation is over
+    
+    wb_motor_set_velocity(left_motor, MOTOR_MAX_SPEED);
+    wb_motor_set_velocity(right_motor, MOTOR_MAX_SPEED);
+    
+    /*
+    * main loop
     */
     while (wb_robot_step(TIME_STEP) != -1) {
-        /*
-        * Read the sensors :
-        * Enter here functions to read sensor data, like:
-        *  double val = wb_distance_sensor_get_value(my_sensor);
-        */
+        // Read sensors
+        lidar_pcd =  wb_lidar_get_point_cloud(lidar);
+        
+        // Process
+        for (size_t i = 0; i < lidar_num_points; i++) {
+            lidar_pcd_pos[i] = (Position) {
+                .x = lidar_pcd[i].x,
+                .y = lidar_pcd[i].y,
+                .z = lidar_pcd[i].z,
+            };
+        }
+        if (DEBUG == 1) {printf("Lidar point %d: %f\n", 0, distance(robot_position, lidar_pcd_pos[0]) );}
+        
 
-        /* Process sensor data here */
-
-        /*
-        * Enter here functions to send actuator commands, like:
-        * wb_motor_set_position(my_actuator, 10.0);
-        */
+        // Actuate
+        
     };
 
     /* Enter your cleanup code here */
@@ -70,4 +88,30 @@ int main(int argc, char **argv) {
     wb_robot_cleanup();
 
     return 0;
+}
+
+// Debug
+void debug_list_devices() {
+    int num_devices = wb_robot_get_number_of_devices();
+    printf("Number of devices: %d\n", num_devices);
+
+    for (size_t i = 0; i < num_devices; i++)
+    {
+        WbDeviceTag current_device      = wb_robot_get_device_by_index(i);
+        const char* current_device_name = wb_device_get_name(current_device);
+
+        printf("Device %d name is: %s\n", current_device, current_device_name);
+    }
+}
+
+// Distance
+float distance(Position component_01, Position component_02) {
+    float distance = sqrtf(
+        powf(component_01.x - component_02.x, 2)
+        +
+        powf(component_01.y - component_02.y, 2)
+        +
+        powf(component_01.z - component_02.z, 2)
+    );
+    return distance;
 }
