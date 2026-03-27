@@ -17,14 +17,25 @@
 #include "robot_go_forward.h"
 
 // Globals
-#define DEBUG 1
+#define TRUE 1
+#define FALSE 0
 
+#define DEBUG TRUE
+
+// Time step
 #define TIME_STEP 64
 
+// Lidar
 #define LIDAR_SAMPLING_PERIOD TIME_STEP
 #define LIDAR_SENSORS_NUM 3
 
-#define MOTOR_MAX_SPEED 6.28
+// PID
+#define CONTROLLER_KP 1.0
+#define CONTROLLER_KI 1.0
+#define CONTROLLER_KD 1.0
+#define CONTROLLER_ERROR_THRESHOLD 0.1
+
+#define MOTOR_MAX_SPEED 6.28 * 0.999
 
 #define OBSTACLE_MAX_DIST 0.25
 
@@ -34,7 +45,7 @@ int main(int argc, char **argv) {
     wb_robot_init();
 
     // List devices
-    if (DEBUG == 1) {debug_list_devices();}
+    if (DEBUG == TRUE) {debug_list_devices();}
 
     // Devices
     WbDeviceTag lidar       = wb_robot_get_device("lidar");
@@ -79,9 +90,9 @@ int main(int argc, char **argv) {
                 .z = lidar_pcd[i].z,
             };
         }
-        if (DEBUG == 1) {printf("Lidar point %d: %f\n", 0, distance(robot_position, lidar_pcd_pos[0]) );}
-        if (DEBUG == 1) {printf("Lidar point %d: %f\n", 7, distance(robot_position, lidar_pcd_pos[7]) );}
-        if (DEBUG == 1) {printf("Lidar point %d: %f\n", 15, distance(robot_position, lidar_pcd_pos[15]) );}
+        if (DEBUG == TRUE) {printf("Lidar point %d: %f\n", 0, distance(robot_position, lidar_pcd_pos[0]) );}
+        if (DEBUG == TRUE) {printf("Lidar point %d: %f\n", 7, distance(robot_position, lidar_pcd_pos[7]) );}
+        if (DEBUG == TRUE) {printf("Lidar point %d: %f\n", 15, distance(robot_position, lidar_pcd_pos[15]) );}
         
 
         // Actuate
@@ -91,6 +102,9 @@ int main(int argc, char **argv) {
             distance(robot_position, lidar_pcd_pos[15])
         };
         avoid_obstacles(sensor_distances, LIDAR_SENSORS_NUM, left_motor, right_motor);
+
+        // DEBUG
+        printf("\n");
         
     };
 
@@ -116,7 +130,7 @@ void debug_list_devices() {
     }
 }
 
-// Distance
+// Utils
 float distance(Position component_01, Position component_02) {
     float distance = sqrtf(
         powf(component_01.x - component_02.x, 2)
@@ -128,27 +142,78 @@ float distance(Position component_01, Position component_02) {
     return distance;
 }
 
+float clamp_float(float value, float min_val, float max_val) {
+    return fmaxf(min_val, fminf(value, max_val));
+}
+
 // Path control
 void avoid_obstacles(
     float* sensor_distances, int num_sensors,
     WbDeviceTag left_motor, WbDeviceTag right_motor
 ) {
-    if (
-        sensor_distances[0] <= OBSTACLE_MAX_DIST/2
-        ||
-        sensor_distances[1] <= OBSTACLE_MAX_DIST
-        ||
-        sensor_distances[2] <= OBSTACLE_MAX_DIST/2
-    ) {
-        if (sensor_distances[0] > sensor_distances[2]) {
-            wb_motor_set_velocity(left_motor, -MOTOR_MAX_SPEED);
-            wb_motor_set_velocity(right_motor, MOTOR_MAX_SPEED);
-        } else {
-            wb_motor_set_velocity(left_motor, MOTOR_MAX_SPEED);
-            wb_motor_set_velocity(right_motor, -MOTOR_MAX_SPEED);
+    // if (
+    //     sensor_distances[0] <= OBSTACLE_MAX_DIST/2
+    //     ||
+    //     sensor_distances[1] <= OBSTACLE_MAX_DIST
+    //     ||
+    //     sensor_distances[2] <= OBSTACLE_MAX_DIST/2
+    // ) {
+    //     if (sensor_distances[0] > sensor_distances[2]) {
+    //         wb_motor_set_velocity(left_motor, -MOTOR_MAX_SPEED);
+    //         wb_motor_set_velocity(right_motor, MOTOR_MAX_SPEED);
+    //     } else {
+    //         wb_motor_set_velocity(left_motor, MOTOR_MAX_SPEED);
+    //         wb_motor_set_velocity(right_motor, -MOTOR_MAX_SPEED);
+    //     }
+    // } else {
+    //     wb_motor_set_velocity(left_motor, MOTOR_MAX_SPEED);
+    //     wb_motor_set_velocity(right_motor, MOTOR_MAX_SPEED);
+    // }
+
+    // Check for Nan
+    for (u_int8_t i = 0; i < num_sensors; i++) {
+        if (isnan(sensor_distances[i])) {
+            return;
         }
-    } else {
-        wb_motor_set_velocity(left_motor, MOTOR_MAX_SPEED);
-        wb_motor_set_velocity(right_motor, MOTOR_MAX_SPEED);
     }
+
+    // Compute error
+    float error = sensor_distances[1] - OBSTACLE_MAX_DIST;
+
+    float motor_speed_factor = controller_pid(
+        error,
+        CONTROLLER_ERROR_THRESHOLD,
+        CONTROLLER_KP,
+        CONTROLLER_KI,
+        CONTROLLER_KD,
+        TIME_STEP
+    );
+    printf("Motor speed factor: %f\n", motor_speed_factor);
+
+    // Motor control
+    wb_motor_set_velocity(
+        left_motor,
+        clamp_float(/*MOTOR_MAX_SPEED **/ motor_speed_factor, -MOTOR_MAX_SPEED, MOTOR_MAX_SPEED)
+    );
+    wb_motor_set_velocity(
+        right_motor,
+        clamp_float(/*MOTOR_MAX_SPEED **/ motor_speed_factor, -MOTOR_MAX_SPEED, MOTOR_MAX_SPEED)
+    );
+}
+
+float controller_pid(
+    float error,
+    float error_threshold,
+    float kp,
+    float ki,
+    float kd,
+    float dt
+) {
+    if (error <= error_threshold) { error = 0.0; }
+
+    float motor_speed_factor = 
+        error * kp +
+        error * dt * kd;
+
+    return motor_speed_factor;
 }

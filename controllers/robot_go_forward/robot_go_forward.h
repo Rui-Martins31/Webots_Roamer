@@ -19,11 +19,21 @@ typedef struct {
 // Debug
 void debug_list_devices();
 
+// Utils
 float distance(Position component_01, Position component_02);
+float clamp_float(float value, float min_val, float max_val);
 
 void avoid_obstacles(
     float* sensor_distances, int num_sensors,
     WbDeviceTag left_motor, WbDeviceTag right_motor
+);
+float controller_pid(
+    float error,
+    float error_threshold,
+    float kp,
+    float ki,
+    float kd,
+    float dt
 );
 
 #endif /* ROBOT_GO_FORWARD_H */
