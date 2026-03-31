@@ -11,9 +11,9 @@
 
 // Structs
 typedef struct {
-    float x;
-    float y;
-    float z;
+    double x;
+    double y;
+    double z;
 } Position;
 
 typedef struct {
@@ -22,6 +22,11 @@ typedef struct {
     double left_sensor_value;
     double right_sensor_value;
 } MotorEncoders;
+
+typedef struct {
+    Position position;
+    double orientation;
+} Odometry;
 
 
 // Debug
@@ -47,6 +52,9 @@ float controller_pid(
     float dt,
     float error_total
 );
+
+// Odometry
+void update_odometry(Odometry* odometry, double left_sensor_delta_counts, double right_sensor_delta_counts);
 
 #endif /* ROBOT_GO_FORWARD_H */
 
