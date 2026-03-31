@@ -30,12 +30,12 @@
 #define LIDAR_SENSORS_NUM 3
 
 // PID
-#define CONTROLLER_KP 1.0
-#define CONTROLLER_KI 1.0
-#define CONTROLLER_KD 1.0
-#define CONTROLLER_ERROR_THRESHOLD 0.1
+#define CONTROLLER_KP 0.5
+#define CONTROLLER_KI 0.0
+#define CONTROLLER_KD 10.0
+#define CONTROLLER_ERROR_THRESHOLD 0.05
 
-#define MOTOR_MAX_SPEED 6.28 * 0.999
+#define MOTOR_MAX_SPEED 6.28 * 0.999 * 0.5
 
 #define OBSTACLE_MAX_DIST 0.25
 
@@ -104,7 +104,7 @@ int main(int argc, char **argv) {
         avoid_obstacles(sensor_distances, LIDAR_SENSORS_NUM, left_motor, right_motor);
 
         // DEBUG
-        printf("\n");
+        printf(" \n");
         
     };
 
@@ -178,7 +178,17 @@ void avoid_obstacles(
     }
 
     // Compute error
-    float error = sensor_distances[1] - OBSTACLE_MAX_DIST;
+    static float error_total = 0.0;
+    // float error = sensor_distances[1] - OBSTACLE_MAX_DIST;
+    float error = sensor_distances[0] - sensor_distances[2];
+    if (
+        sensor_distances[0] <= OBSTACLE_MAX_DIST/2
+        ||
+        sensor_distances[1] <= OBSTACLE_MAX_DIST
+        ||
+        sensor_distances[2] <= OBSTACLE_MAX_DIST/2
+    ) { error *= 100.0; }
+    error_total += error;
 
     float motor_speed_factor = controller_pid(
         error,
@@ -186,18 +196,20 @@ void avoid_obstacles(
         CONTROLLER_KP,
         CONTROLLER_KI,
         CONTROLLER_KD,
-        TIME_STEP
+        (float) 1/TIME_STEP,
+        error_total
     );
+    printf("Error: %f\n", error);
     printf("Motor speed factor: %f\n", motor_speed_factor);
 
     // Motor control
     wb_motor_set_velocity(
         left_motor,
-        clamp_float(/*MOTOR_MAX_SPEED **/ motor_speed_factor, -MOTOR_MAX_SPEED, MOTOR_MAX_SPEED)
+        clamp_float(MOTOR_MAX_SPEED + MOTOR_MAX_SPEED * -motor_speed_factor, -MOTOR_MAX_SPEED, MOTOR_MAX_SPEED)
     );
     wb_motor_set_velocity(
         right_motor,
-        clamp_float(/*MOTOR_MAX_SPEED **/ motor_speed_factor, -MOTOR_MAX_SPEED, MOTOR_MAX_SPEED)
+        clamp_float(MOTOR_MAX_SPEED + MOTOR_MAX_SPEED * motor_speed_factor, -MOTOR_MAX_SPEED, MOTOR_MAX_SPEED)
     );
 }
 
@@ -207,12 +219,14 @@ float controller_pid(
     float kp,
     float ki,
     float kd,
-    float dt
+    float dt,
+    float error_total
 ) {
-    if (error <= error_threshold) { error = 0.0; }
+    if (error_threshold <= error && error <= error_threshold) { error = 0.0; }
 
     float motor_speed_factor = 
         error * kp +
+        error_total * ki +
         error * dt * kd;
 
     return motor_speed_factor;

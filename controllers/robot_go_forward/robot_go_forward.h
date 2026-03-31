@@ -33,7 +33,8 @@ float controller_pid(
     float kp,
     float ki,
     float kd,
-    float dt
+    float dt,
+    float error_total
 );
 
 #endif /* ROBOT_GO_FORWARD_H */
