@@ -3,7 +3,7 @@
 * Date:          03-20-2026
 * Description:   Simple controller to make the robot move forward
 * Author:        Rui Martins
-* Modifications:
+* Information:   https://cyberbotics.com/doc/guide/epuck?version=R2022b
 */
 
 #include <stdio.h>
@@ -12,6 +12,7 @@
 #include <webots/robot.h>
 #include <webots/device.h>
 #include <webots/motor.h>
+#include <webots/position_sensor.h>
 #include <webots/lidar.h>
 
 #include "robot_go_forward.h"
@@ -53,6 +54,9 @@ int main(int argc, char **argv) {
     WbDeviceTag left_motor  = wb_robot_get_device("left wheel motor");
     WbDeviceTag right_motor = wb_robot_get_device("right wheel motor");
 
+    WbDeviceTag left_motor_sensor  = wb_robot_get_device("left wheel sensor");
+    WbDeviceTag right_motor_sensor = wb_robot_get_device("right wheel sensor");
+
     // Robot
     Position robot_position = (Position) {
         .x = 0.0,
@@ -74,10 +78,17 @@ int main(int argc, char **argv) {
     
     wb_motor_set_velocity(left_motor, MOTOR_MAX_SPEED);
     wb_motor_set_velocity(right_motor, MOTOR_MAX_SPEED);
+
+    wb_position_sensor_enable(left_motor_sensor, TIME_STEP);
+    wb_position_sensor_enable(right_motor_sensor, TIME_STEP);
+    MotorEncoders motor_encoders = (MotorEncoders) {
+        .left_motor_sensor_tag  = left_motor_sensor,
+        .left_sensor_value      = wb_position_sensor_get_value(left_motor_sensor),
+        .right_motor_sensor_tag = right_motor_sensor,
+        .right_sensor_value     = wb_position_sensor_get_value(right_motor_sensor)
+    };
     
-    /*
-    * main loop
-    */
+    // Loop
     while (wb_robot_step(TIME_STEP) != -1) {
         // Read sensors
         lidar_pcd =  wb_lidar_get_point_cloud(lidar);
@@ -103,9 +114,17 @@ int main(int argc, char **argv) {
         };
         avoid_obstacles(sensor_distances, LIDAR_SENSORS_NUM, left_motor, right_motor);
 
+        // Update
+        double left_motor_sensor_value  = wb_position_sensor_get_value(left_motor_sensor);
+        double right_motor_sensor_value = wb_position_sensor_get_value(right_motor_sensor);
+        printf("Left motor sensor value dif: %f\n", motor_encoders.left_sensor_value - left_motor_sensor_value);
+        printf("Right motor sensor value dif: %f\n", motor_encoders.right_sensor_value - right_motor_sensor_value);
+
+        motor_encoders.left_sensor_value  = left_motor_sensor_value;
+        motor_encoders.right_sensor_value = right_motor_sensor_value;
+
         // DEBUG
         printf(" \n");
-        
     };
 
     /* Enter your cleanup code here */
